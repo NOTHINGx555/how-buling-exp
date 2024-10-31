@@ -1,0 +1,381 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Security.Principal;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using ForlornApi;
+using Manina.Windows.Forms;
+using Microsoft.Win32;
+using Siticone.Desktop.UI.WinForms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+
+namespace tut_executer
+{
+    public partial class Form1 : RoundedForm
+    {
+        Timer time = new Timer();
+        public Point mouseLocation;
+
+        public Form1()
+        {
+            InitializeComponent();
+            Editor.Navigate(new Uri(string.Format("file:///{0}/Monaco/index.html", Directory.GetCurrentDirectory())));
+            Editor.DocumentCompleted += Editor_DocumentCompleted;
+        }
+
+
+
+        private void Editor_DocumentCompleted(object sender, WebBrowserDocumentCompletedEventArgs e)
+        {
+            // The document is ready, and you can now safely invoke scripts.
+        }
+
+        private int tabCount = 1;
+
+        // Funkcja do aktualizowania nazw zakładek
+        private void UpdateTabNames()
+        {
+            for (int i = 0; i < tabControl1.TabCount; i++)
+            {
+                tabControl1.TabPages[i].Text = $"Tab {i + 1}";
+            }
+            tabCount = tabControl1.TabCount; // Aktualizacja tabCount na bieżąco
+        }
+
+        private void siticoneImageButton1_Click(object sender, EventArgs e)
+        {
+            if (tabControl1.TabCount > 0 && tabControl1.SelectedTab != null)
+            {
+                if (tabControl1.TabCount > 1)
+                {
+                    // Usuń wybraną zakładkę
+                    tabControl1.TabPages.Remove(tabControl1.SelectedTab);
+                    UpdateTabNames(); // Aktualizacja nazw zakładek po usunięciu
+                }
+            }
+        }
+
+        private void siticoneImageButton2_Click(object sender, EventArgs e)
+        {
+            if (tabCount >= 13)
+            {
+                MessageBox.Show("Maximum of 13 tabs reached.");
+                return;
+            }
+
+            TabPage newTab = new TabPage($"Tab {tabCount + 1}")
+            {
+                BackColor = Color.FromArgb(20, 20, 20)
+            };
+
+            WebBrowser webBrowser = new WebBrowser
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(20, 20, 20),
+                ScriptErrorsSuppressed = true
+            };
+
+            webBrowser.DocumentCompleted += (s, args) =>
+            {
+                tabControl1.TabPages.Add(newTab);
+                UpdateTabNames(); // Aktualizacja nazw zakładek po dodaniu
+            };
+
+            webBrowser.Navigate(new Uri(string.Format("file:///{0}/Monaco/index.html", Directory.GetCurrentDirectory())));
+            newTab.Controls.Add(webBrowser);
+        }
+
+
+        private void siticoneImageButton4_Click(object sender, EventArgs e)
+        {
+            // Inject the API
+            ForlornApi.Api.Inject();
+
+            // Check if the API is injected
+            if (ForlornApi.Api.IsInjected())
+            {
+                // If injected, set the image to green
+                siticoneImageButton4.Image = Properties.Resources.green_at; // Ensure green_at.png is in Resources
+            }
+            else
+            {
+                // If not injected, set the image to red
+                siticoneImageButton4.Image = Properties.Resources.red_at; // Ensure red_at.png is in Resources
+            }
+        }
+
+        private void siticoneImageButton3_Click(object sender, EventArgs e)
+        {
+            // Get the currently selected tab
+            TabPage selectedTab = tabControl1.SelectedTab;
+
+            if (selectedTab != null)
+            {
+                // Find the WebBrowser control in the selected tab
+                WebBrowser webBrowser = selectedTab.Controls.OfType<WebBrowser>().FirstOrDefault();
+
+                if (webBrowser != null && webBrowser.Document != null)
+                {
+                    // Retrieve the script from the WebBrowser control and execute it
+                    string script = webBrowser.Document.InvokeScript("getValue").ToString();
+                    ForlornApi.Api.ExecuteScript(script);
+                }
+                else
+                {
+                    MessageBox.Show("No script editor available in the current tab.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
+        private void siticoneImageButton5_Click(object sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private void siticoneImageButton6_Click(object sender, EventArgs e)
+        {
+            this.WindowState = FormWindowState.Minimized;
+        }
+
+
+
+
+
+
+
+        private string robloxPath; // Variable to store the path to the file
+
+        private void siticoneImageButton7_Click(object sender, EventArgs e)
+        {
+            // Check if robloxPath is set
+            if (string.IsNullOrEmpty(robloxPath))
+            {
+                // If path is not set, ask the user to select the file
+                using (System.Windows.Forms.OpenFileDialog openFileDialog = new System.Windows.Forms.OpenFileDialog())
+                {
+                    openFileDialog.Title = "Select RobloxPlayerBeta.exe or RobloxPlayerBeta.lnk";
+                    openFileDialog.Filter = "NOTHING|*RobloxPlayerBeta.exe;*RobloxPlayerBeta.lnk"; // Filter for both .exe and .lnk files
+
+                    if (openFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        // Save the selected path
+                        robloxPath = openFileDialog.FileName;
+
+                        // Check if the correct file was selected
+                        if (System.IO.Path.GetFileName(robloxPath) != "RobloxPlayerBeta.exe" && System.IO.Path.GetFileName(robloxPath) != "RobloxPlayerBeta.lnk")
+                        {
+                            MessageBox.Show("You must select RobloxPlayerBeta.exe or RobloxPlayerBeta.lnk!");
+                            robloxPath = null; // Reset the path
+                        }
+                        else
+                        {
+                            MessageBox.Show("run me again for open rbx");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Check if the file exists
+                if (!System.IO.File.Exists(robloxPath))
+                {
+                    MessageBox.Show("Your Roblox file has been deleted. You have to choose again.");
+                    robloxPath = null; // Resetting the path
+                    return;
+                }
+
+                // Check if the Roblox process is already running
+                if (IsRobloxRunning())
+                {
+                    MessageBox.Show("RobloxPlayerBeta.exe is already running.");
+                }
+                else
+                {
+                    // If the file exists and is not running, start the selected file
+                    try
+                    {
+                        System.Diagnostics.Process.Start(robloxPath);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("An error occurred while starting Roblox: " + ex.Message);
+                    }
+                }
+            }
+        }
+
+        // Function to check if RobloxPlayerBeta.exe is running
+        private bool IsRobloxRunning()
+        {
+            return System.Diagnostics.Process.GetProcessesByName("RobloxPlayerBeta").Length > 0;
+        }
+
+        // Reset the path when the application closes
+        private void YourForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            robloxPath = null; // Resetting the path
+        }
+
+
+
+
+
+
+        private void siticoneImageButton8_Click(object sender, EventArgs e)
+        {
+            ForlornApi.Api.KillRoblox();
+        }
+
+        private void siticoneImageButton9_Click(object sender, EventArgs e)
+        {
+            // Get the currently selected tab
+            TabPage selectedTab = tabControl1.SelectedTab;
+
+            if (selectedTab != null)
+            {
+                // Find the WebBrowser control in the selected tab
+                WebBrowser webBrowser = selectedTab.Controls.OfType<WebBrowser>().FirstOrDefault();
+
+                if (webBrowser != null && webBrowser.Document != null)
+                {
+                    // Ensure the document is loaded and then invoke JavaScript to clear the editor
+                    webBrowser.Document.InvokeScript("eval", new object[] { "editor.setValue('')" });
+                }
+                else
+                {
+                    MessageBox.Show("No WebBrowser control available in the current tab or document not ready.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("No tab selected.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void siticoneImageButton9_Click_1(object sender, EventArgs e)
+        {
+            // Get the currently selected tab
+            TabPage selectedTab = tabControl1.SelectedTab;
+
+            if (selectedTab != null)
+            {
+                // Find the WebBrowser control in the selected tab
+                WebBrowser webBrowser = selectedTab.Controls.OfType<WebBrowser>().FirstOrDefault();
+
+                if (webBrowser != null && webBrowser.Document != null)
+                {
+                    // Open file dialog to select the script file
+                    using (System.Windows.Forms.OpenFileDialog dialog = new System.Windows.Forms.OpenFileDialog())
+                    {
+                        // Set the filter to allow both Lua and text files
+                        dialog.Filter = "Lua and Text Files (*.lua;*.txt)|*.lua;*.txt|All Files (*.*)|*.*";
+                        dialog.Title = "Select a Script File";
+
+                        if (dialog.ShowDialog() == DialogResult.OK)
+                        {
+                            // Read the script from the selected file
+                            string script = File.ReadAllText(dialog.FileName);
+
+                            // Invoke JavaScript to set the value in the editor
+                            webBrowser.Document.InvokeScript("setValue", new object[] { script });
+                        }
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("No WebBrowser control available in the current tab or document not ready.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("No tab selected.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+        private void siticoneImageButton10_Click(object sender, EventArgs e)
+        {
+            // Get the currently selected tab
+            TabPage selectedTab = tabControl1.SelectedTab;
+
+            if (selectedTab != null)
+            {
+                // Find the WebBrowser control in the selected tab
+                WebBrowser webBrowser = selectedTab.Controls.OfType<WebBrowser>().FirstOrDefault();
+
+                if (webBrowser != null && webBrowser.Document != null)
+                {
+                    // Open save file dialog to save the script
+                    using (System.Windows.Forms.SaveFileDialog saveFileDialog1 = new System.Windows.Forms.SaveFileDialog
+                    {
+                        Filter = "Lua Files (*.lua)|*.lua|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                        DefaultExt = "lua",
+                        Title = "Save Lua or Text File"
+                    })
+                    {
+                        if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+                        {
+                            // Retrieve the text from the WebBrowser control
+                            string textToSave = (string)webBrowser.Document.InvokeScript("getValue");
+
+                            // Save the file
+                            using (Stream s = File.Open(saveFileDialog1.FileName, FileMode.Create))
+                            using (StreamWriter sw = new StreamWriter(s))
+                            {
+                                sw.Write(textToSave);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    MessageBox.Show("No WebBrowser control available in the current tab or document not ready.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show("No tab selected.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+
+        private void siticoneCustomCheckBox1_Click(object sender, EventArgs e)
+        {
+            // Sprawdzenie, czy checkbox jest zaznaczony
+            if (siticoneCustomCheckBox1.Checked)
+            {
+                // Ustaw okno jako 'TopMost'
+                this.TopMost = true;
+            }
+            else
+            {
+                // Ustaw okno jako 'Nie TopMost'
+                this.TopMost = false;
+            }
+        }
+
+
+        internal class WshShell
+        {
+            internal IWshShortcut CreateShortcut(string shortcutPath)
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        internal interface IWshShortcut
+        {
+            string TargetPath { get; }
+        }
+    }
+}
+
+
+
